@@ -6,8 +6,8 @@
 
 // this is for the Segment LED brick
 
-#define CLK 12
-#define DIO 13
+#define CLK 11
+#define DIO 12
 
 TM1637 tm1637( CLK, DIO );
 
@@ -163,8 +163,9 @@ void loop(){
   /* mlcd.print("PosX",10,74+32); // */
   /* mlcd.printNumI(pos_X,10,90+32,4); */
 
-  mlcd.printNumI(dt * 1000.0,10,74+32+32,4);
+  //mlcd.printNumI(dt * 1000.0,10,74+32+32,4);
 
+  display_number( dt * 1000 );
   
   if ( digitalRead( button_analog_input) == LOW ){
 
