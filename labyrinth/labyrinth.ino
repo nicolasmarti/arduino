@@ -1,13 +1,17 @@
 #include <math.h>
 #include <Wire.h>
 #include "TM1637.h"
+//#include <SPI.h>
+#include <UTFT.h>
 
 // this is for the Segment LED brick
 
-#define CLK 4
-#define DIO 5
+#define CLK 12
+#define DIO 13
 
 TM1637 tm1637( CLK, DIO );
+
+UTFT mlcd(ITDB18SP,4,3,7,6,5);//get lcd controler(model,data,clk,cs,rst,control)
 
 void display_number(int a){
   
@@ -39,6 +43,32 @@ void compute_angles(float* angle_x, float* angle_y, float* angle_z);
 
 void NineDoF_init();
 
+////
+
+#define LCD_BL  2
+extern uint8_t SmallFont[];
+
+////
+
+int max_display_X;
+int max_display_Y;
+
+
+////
+
+float pos_X;
+float pos_Y;
+float vel_X;
+float vel_Y;
+float accel_X;
+float accel_Y;
+
+int radius = 4;
+
+#define pi 3.14159
+
+unsigned long previous_time;
+unsigned long time_now;
 
 ////
 
@@ -61,30 +91,80 @@ void setup(){
   Wire.begin();
 
   NineDoF_init();
+
+  pinMode(LCD_BL,OUTPUT);
+  digitalWrite(LCD_BL,HIGH);
+  mlcd.InitLCD(0);
+  mlcd.setFont(SmallFont);
+  mlcd.clrScr();  //refresh the lcd
+
+  max_display_X = mlcd.getDisplayXSize();
+  max_display_Y = mlcd.getDisplayYSize();
+
+  pos_X = max_display_X / 2;
+  pos_Y = max_display_Y / 2;
+
+  previous_time = millis();
+
+  Serial.print(cos(pi), 2);
+  Serial.print('\t');
+  
+  mlcd.setFont(SmallFont);
   
 }
 
 void loop(){
 
+  ////////////////////////
+  
+  time_now = millis();
+  float dt = (time_now - previous_time) / 1000.0;
+  previous_time = time_now;
+
+  ////////////////////////
+
   float angleX, angleY, angleZ;
 
   compute_angles(&angleX, &angleY, &angleZ);
 
-  if (state == DISPLAYX )
-    display_number( angleX > 0.0 ? (int)angleX : (int)(-angleX) );
+  ///
 
-  if (state == DISPLAYY )
-    display_number( angleY > 0.0 ? (int)angleY : (int)(-angleY) );
+  accel_X = 9.8 * cos(pi / 2.0 - angleX * pi / 380.0 );
+  accel_Y = 9.8 * cos(pi / 2.0 - angleY * pi / 380.0);
   
-  if (state == DISPLAYZ )
-    display_number( angleZ > 0.0 ? (int)angleZ : (int)(-angleZ) );
+  vel_X = vel_X + accel_X * dt;
+  vel_Y = vel_Y + accel_Y * dt;
 
-  //Print the output rates to the terminal, seperated by a TAB character.
-  Serial.print(angleX, 2);
-  Serial.print('\t');
-  Serial.print(angleY, 2);
-  Serial.print('\t');
-  Serial.println(angleZ, 2);
+  float old_pos_X = pos_X;
+  float old_pos_Y = pos_Y;
+  
+  pos_X = min( max_display_X, max( 0.0,  pos_X + vel_X * dt) ); 
+  pos_Y = min( max_display_Y, max( 0.0,  pos_Y + vel_Y * dt) );
+
+  if (pos_X == old_pos_X)
+    vel_X = 0;
+
+  if (pos_Y == old_pos_Y)
+    vel_Y = 0;
+
+  ////////////////////////
+
+  mlcd.setColor(255,0,0);
+  
+  /* mlcd.print("AngleX",10,10); // */
+  /* mlcd.printNumI(angleX,10,26,4); */
+
+  /* mlcd.print("AccelX",10,42); // */
+  /* mlcd.printNumI(accel_X,10,58,4); */
+
+  /* mlcd.print("VelX",10,74); // */
+  /* mlcd.printNumI(vel_X,10,90,4); */
+
+  /* mlcd.print("PosX",10,74+32); // */
+  /* mlcd.printNumI(pos_X,10,90+32,4); */
+
+  mlcd.printNumI(dt * 1000.0,10,74+32+32,4);
+
   
   if ( digitalRead( button_analog_input) == LOW ){
 
@@ -99,7 +179,16 @@ void loop(){
     
   }
 
-  delay(10);
+    
+  mlcd.setColor(0,0,0);
+  mlcd.drawCircle( old_pos_X, old_pos_Y, radius);
+
+  mlcd.setColor(255,0,0);
+  mlcd.drawCircle( pos_X, pos_Y, radius);
+  
+
+  
+  //delay(10);
 
 }
 
@@ -127,7 +216,6 @@ int g_offz = 41;
 
 #define Gry_offset -13
 #define Gyr_Gain 0.07
-#define pi 3.14159
 
 unsigned long preTime;
 float f_angleX;
